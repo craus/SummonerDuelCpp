@@ -12,6 +12,9 @@ struct unit_type {
 };
 
 std::ostream& operator << (std::ostream& out, unit_type const& unit) {
+	if (unit.damage == 0) {
+		out << "M ";
+	}
 	out << std::max(unit.mana, unit.damage) << "/" << unit.hp;
 	if (unit.armor > 0) {
 		out << "a" << unit.armor;
@@ -28,11 +31,16 @@ struct player_type {
 	std::string name;
 	unit_type mage;
 	std::vector<unit_type> creatures;
-	int mover_index = 0;
+	int mover_index = -2;
 
-	unit_type& mover() {
-		assert(mover_index < (int)creatures.size());
-		return creatures[mover_index];
+	unit_type* mover() {
+		if (mover_index == -2) {
+			return nullptr;
+		}
+		if (mover_index == -1) {
+			return &mage;
+		}
+		return &creatures[mover_index];
 	}
 
 	player_type() {
@@ -44,24 +52,25 @@ struct player_type {
 		mover_index = -1;
 	}
 
-	//bool is_mover(game_type& game) {
-	//	return game.mover == this;
-	//}
-
 	void print(std::ostream& out, game_type& game) {
-		out << name << " - " << mage << "\n";
+		out << fmt::format(is_mover(game) ? "[{0}]" : "{0}", name) 
+			<< " - " << mage << "\n";
 		for (auto c : creatures) {
 			out << c << "\n";
 		}
 	}
+
+	bool is_mover(game_type const& game) const;
 };
+
+
 
 struct game_type {
 	player_type players[2];
 	int mover_index;
 	int move_number;
 
-	player_type& mover() {
+	const player_type& mover() const {
 		assert(mover_index < 2);
 		return players[mover_index];
 	}
@@ -82,6 +91,10 @@ struct game_type {
 		players[1].print(out, *this);
 	}
 } game;
+
+bool player_type::is_mover(game_type const& game) const {
+	return this == std::addressof(game.mover());
+}
 
 std::string command;
 
