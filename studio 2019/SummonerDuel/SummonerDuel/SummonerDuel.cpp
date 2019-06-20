@@ -94,6 +94,10 @@ struct player_type {
 		mage.hp = 12;
 	}
 
+	player_type(std::string name) : name(name) {
+		mage.hp = 12;
+	}
+
 	void start_move(bool first_move = false) {
 		mage.mana += first_move ? 1 : 2;
 		if (creatures.size() > 0) {
@@ -119,7 +123,7 @@ struct player_type {
 	void summon_creature(game_type& game, int dmg, int hp, int armour, bool splash);
 	void attack(game_type& game, int target);
 
-	void next_unit(); 
+	void next_unit(game_type & game); 
 	void skip(game_type& game);
 
 	void print(std::ostream& out, game_type& game);
@@ -130,30 +134,28 @@ bool unit_type::is_mover(player_type const& player) const {
 }
 
 struct game_type {
-	static const int P = 2;
-	player_type players[P];
+	static constexpr int P = 2;
+	player_type players[P] = { player_type(), player_type() };
 	int mover_index = 0;
 	int move_number = 0;
 
 	const player_type& mover() const {
-		assert(mover_index < P);
+		assert(mover_index >= 0 && mover_index < P);
 		return players[mover_index];
 	}
 	player_type& mover() {
-		assert(mover_index < P);
+		assert(mover_index >= 0 && mover_index < P);
 		return players[mover_index];
 	}
 
-	player_type& enemy(player_type& player) {
-		if (&player == &players[0]) {
+	player_type& find_enemy(player_type& player) {
+		if (&player == &players[0]) { 
 			return players[1];
 		}
 		return players[0];
 	}
 
 	game_type() {
-		players[0].name = "player1";
-		players[1].name = "player2";
 	}
 
 	std::string command_prompt() {
@@ -164,13 +166,13 @@ struct game_type {
 	}
 
 	void end_turn() {
-		move_number++;
+		++move_number;
 		mover_index = (mover_index + 1) % P;
 		mover().start_move();
 	}
 
 	void print(std::ostream& out) {
-		out << "Move #" << game.move_number << "\n\n";
+		out << "Move #" << move_number << "\n\n";
 		players[0].print(out, *this);
 		out << "\n";
 		players[1].print(out, *this);
@@ -179,7 +181,7 @@ struct game_type {
 	void after_unit_hit() {
 		for (auto& p : players) {
 			if (p.mage.dead()) {
-				win(enemy(p));
+				win(find_enemy(p));
 				return;
 			}
 			p.remove_dead_creatures();
@@ -189,7 +191,7 @@ struct game_type {
 	void win(player_type& p) {
 		std::cout << fmt::format("{0} wins!", p.name);
 	}
-} game;
+};
 
 void player_type::print(std::ostream& out, game_type& game) {
 	out << fmt::format(is_mover(game) ? "[{0}]" : "{0}", name)
@@ -199,7 +201,7 @@ void player_type::print(std::ostream& out, game_type& game) {
 	out << "mover_index: " << mover_index << "\n";
 	int index = 1;
 	for (auto& c : creatures) {
-		if (game.enemy(*this).is_mover(game) && !game.mover().mage_move()) {
+		if (game.find_enemy(*this).is_mover(game) && !game.mover().mage_move()) {
 			out << fmt::format("<{0}> ", index);
 			index++;
 		}
@@ -220,7 +222,7 @@ void player_type::end_turn(game_type &game) {
 
 void player_type::summon_creature(game_type &game, int dmg, int hp, int armour, bool splash) {
 	unit_type u{ .damage = dmg, .hp = hp, .armor = armour, .splash = splash };
-	int m = u.manacost();
+	auto m = u.manacost();
 	std::cout << fmt::format("Summoning creature: {0} (manacost {1})\n", u, m);
 	if (!mage_move()) {
 		std::cout << fmt::format("Cannot summon creature. It's not mage's move\n");
@@ -247,17 +249,18 @@ void player_type::attack(game_type& game, int targetIndex) {
 		std::cout << fmt::format("Cannot attack. It's mage's move\n");
 		return;
 	}
-	player_type & enemy = game.enemy(*this);
-	if (targetIndex > enemy.creatures.size()) {
+	auto & enemy = game.find_enemy(*this);
+	if (targetIndex < 0 || targetIndex > enemy.creatures.size()) {
 		std::cout << fmt::format("Cannot attack. No such target exists\n");
 		return;
 	}
-	unit_type * target = 
+	unit_type & target = 
 		targetIndex == 0 
-		? &enemy.mage 
-		: &enemy.creatures[targetIndex-1];
-	target->hit(*mover(), game);
-	next_unit();
+		? enemy.mage 
+		: enemy.creatures[targetIndex-1];
+	assert(mover() != nullptr);
+	target.hit(*mover(), game);
+	next_unit(game);
 }
 
 void player_type::skip(game_type & game) {
@@ -265,7 +268,7 @@ void player_type::skip(game_type & game) {
 	game.end_turn();
 }
 
-void player_type::next_unit() {
+void player_type::next_unit(game_type & game) {
 	mover_index++;
 	if (mover_index == creatures.size()) {
 		mover_index = -1;
@@ -278,16 +281,16 @@ void unit_type::move(player_type& owner, game_type& game) {
 	if (!splash) {
 		return;
 	}
-	for (auto& c : game.enemy(owner).creatures) {
+	for (auto& c : game.find_enemy(owner).creatures) {
 		c.hit(*this, game);
 	}
-	game.enemy(owner).mage.hit(*this, game);
+	game.find_enemy(owner).mage.hit(*this, game);
 }
 
 void unit_type::hit(unit_type& attacker, game_type& game) {
 	int dmg = std::max(0, attacker.damage - armor);
 	std::cout << fmt::format("{0} attacks {1} for {2} dmg\n", attacker, *this, dmg);
-	if (hp - dmg <= 0) {
+	if (hp <= dmg) {
 		std::cout << fmt::format("{0} dies\n", *this);
 	}
 	hp -= dmg;
@@ -300,14 +303,14 @@ void clear() {
 	system("cls");
 }
 
-void new_game() {
+void new_game(game_type & game) {
 	game = game_type();
 	game.players[0].start_move(true);
 }
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-	new_game();
+	game_type game;
 
 	while (true) {
 		game.print(std::cout);
@@ -322,7 +325,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			break;
 		} else if (command[0] == 'r') {
 			std::cout << "Restarting game..." << "\n";
-			new_game();
+			new_game(game);
 		} else if (command[0] == 'c') {
 			std::string c;
 			int dmg = 1, hp = 1, armour = 0;
