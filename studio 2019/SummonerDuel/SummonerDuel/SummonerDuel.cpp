@@ -7,8 +7,8 @@ struct game_type;
 struct player_type;
 
 struct unit_type {
-	int hp = 1;
 	int damage = 1;
+	int hp = 1;
 	int armor = 0;
 	int mana = 0;
 	bool splash = false;
@@ -18,12 +18,6 @@ struct unit_type {
 	}
 
 	bool is_mover(player_type const& player) const;
-
-	unit_type() {}
-
-	unit_type(int damage, int hp, int armor, bool splash)
-		: damage(damage), hp(hp), armor(armor), splash(splash) {
-	}
 
 	int manacost() {
 		return hp / 2 + damage + armor + (splash ? 2 : 0);
@@ -225,7 +219,7 @@ void player_type::end_turn(game_type &game) {
 }
 
 void player_type::summon_creature(game_type &game, int dmg, int hp, int armour, bool splash) {
-	unit_type u(dmg, hp, armour, splash);
+	unit_type u{ .damage = dmg, .hp = hp, .armor = armour, .splash = splash };
 	int m = u.manacost();
 	std::cout << fmt::format("Summoning creature: {0} (manacost {1})\n", u, m);
 	if (!mage_move()) {
