@@ -20,5 +20,6 @@
 #include <math.h>
 #include <algorithm>
 #include "fmt/format.h"
+#include <sstream>
 
 #pragma once
