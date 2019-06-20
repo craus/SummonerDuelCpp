@@ -27,7 +27,7 @@ struct unit_type {
 		return hp > 0 && damage > 0 && armor >= 0;
 	}
 
-	void print(std::ostream& out, player_type& owner) {
+	void print(std::ostream& out, const player_type& owner) const {
 		out << fmt::format(is_mover(owner) ? "[{0}]" : "{0}", *this);
 	}
 
@@ -35,7 +35,7 @@ struct unit_type {
 	void hit(unit_type& attacker, game_type& game);
 };
 
-std::ostream& operator <<(std::ostream& out, unit_type unit) {
+std::ostream& operator <<(std::ostream& out, const unit_type unit) {
 	out << fmt::format("{0}", unit);
 	return out;
 }
