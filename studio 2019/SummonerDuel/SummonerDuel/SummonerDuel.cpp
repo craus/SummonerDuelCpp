@@ -35,11 +35,6 @@ struct unit_type {
 	void hit(unit_type& attacker, game_type& game);
 };
 
-std::ostream& operator <<(std::ostream& out, const unit_type unit) {
-	out << fmt::format("{0}", unit);
-	return out;
-}
-
 namespace fmt {
 	template <>
 	struct formatter<unit_type> {
@@ -61,9 +56,14 @@ namespace fmt {
 	};
 }
 
+std::ostream& operator <<(std::ostream& out, const unit_type unit) {
+	out << fmt::format("{0}", unit);
+	return out;
+}
+
 struct player_type {
 	std::string name = "UNKNOWN PLAYER";
-	unit_type mage;
+	unit_type mage = { .hp = 12 };
 	std::vector<unit_type> creatures;
 	int mover_index = -2;
 
@@ -72,30 +72,22 @@ struct player_type {
 			return nullptr;
 		}
 		if (mover_index == -1) {
-			return &mage;
+			return std::addressof(mage);
 		}
-		return &creatures[mover_index];
+		return std::addressof(creatures[mover_index]);
 	}
 	unit_type* mover() {
 		if (mover_index == -2) {
 			return nullptr;
 		}
 		if (mover_index == -1) {
-			return &mage;
+			return std::addressof(mage);
 		}
-		return &creatures[mover_index];
+		return std::addressof(creatures[mover_index]);
 	}
 
 	bool mage_move() {
 		return mover() == &mage;
-	}
-
-	player_type() {
-		mage.hp = 12;
-	}
-
-	player_type(std::string name) : name(name) {
-		mage.hp = 12;
 	}
 
 	void start_move(bool first_move = false) {
@@ -135,7 +127,10 @@ bool unit_type::is_mover(player_type const& player) const {
 
 struct game_type {
 	static constexpr int P = 2;
-	player_type players[P] = { player_type(), player_type() };
+	player_type players[P] = {
+		{.name = "player1"},
+		{.name = "player2"}
+	};
 	int mover_index = 0;
 	int move_number = 0;
 
@@ -250,7 +245,7 @@ void player_type::attack(game_type& game, int targetIndex) {
 		return;
 	}
 	auto & enemy = game.find_enemy(*this);
-	if (targetIndex < 0 || targetIndex > enemy.creatures.size()) {
+	if (targetIndex < 0 || targetIndex > (int)enemy.creatures.size()) {
 		std::cout << fmt::format("Cannot attack. No such target exists\n");
 		return;
 	}
@@ -270,7 +265,7 @@ void player_type::skip(game_type & game) {
 
 void player_type::next_unit(game_type & game) {
 	mover_index++;
-	if (mover_index == creatures.size()) {
+	if (mover_index == (int)creatures.size()) {
 		mover_index = -1;
 	} else {
 		mover()->move(*this, game);
@@ -308,7 +303,7 @@ void new_game(game_type & game) {
 	game.players[0].start_move(true);
 }
 
-int _tmain(int argc, _TCHAR* argv[])
+int _tmain()
 {
 	game_type game;
 
