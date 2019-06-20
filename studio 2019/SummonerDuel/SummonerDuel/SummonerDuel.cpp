@@ -32,7 +32,7 @@ struct unit_type {
 	}
 
 	void move(player_type& owner, game_type& game);
-	void hit(unit_type& attacker, game_type& game);
+	void hit(unit_type& attacker, game_type& game, bool bulk = false);
 };
 
 namespace fmt {
@@ -87,13 +87,14 @@ struct player_type {
 	}
 
 	bool mage_move() {
-		return mover() == &mage;
+		return mover() == std::addressof(mage);
 	}
 
-	void start_move(bool first_move = false) {
+	void start_move(game_type & game, bool first_move = false) {
 		mage.mana += first_move ? 1 : 2;
 		if (creatures.size() > 0) {
 			mover_index = 0;
+			mover()->move(*this, game);
 		} else {
 			mover_index = -1;
 		}
@@ -144,13 +145,14 @@ struct game_type {
 	}
 
 	player_type& find_enemy(player_type& player) {
-		if (&player == &players[0]) { 
+		if (std::addressof(player) == std::addressof(players[0])) {
 			return players[1];
 		}
 		return players[0];
 	}
 
 	game_type() {
+		players[0].start_move(*this, true);
 	}
 
 	std::string command_prompt() {
@@ -163,7 +165,7 @@ struct game_type {
 	void end_turn() {
 		++move_number;
 		mover_index = (mover_index + 1) % P;
-		mover().start_move();
+		mover().start_move(*this);
 	}
 
 	void print(std::ostream& out) {
@@ -249,7 +251,7 @@ void player_type::attack(game_type& game, int targetIndex) {
 		std::cout << fmt::format("Cannot attack. No such target exists\n");
 		return;
 	}
-	unit_type & target = 
+	auto & target = 
 		targetIndex == 0 
 		? enemy.mage 
 		: enemy.creatures[targetIndex-1];
@@ -277,19 +279,23 @@ void unit_type::move(player_type& owner, game_type& game) {
 		return;
 	}
 	for (auto& c : game.find_enemy(owner).creatures) {
-		c.hit(*this, game);
+		c.hit(*this, game, true);
 	}
 	game.find_enemy(owner).mage.hit(*this, game);
+	game.after_unit_hit();
+	owner.next_unit(game);
 }
 
-void unit_type::hit(unit_type& attacker, game_type& game) {
+void unit_type::hit(unit_type& attacker, game_type& game, bool bulk) {
 	int dmg = std::max(0, attacker.damage - armor);
 	std::cout << fmt::format("{0} attacks {1} for {2} dmg\n", attacker, *this, dmg);
 	if (hp <= dmg) {
 		std::cout << fmt::format("{0} dies\n", *this);
 	}
 	hp -= dmg;
-	game.after_unit_hit();
+	if (!bulk) {
+		game.after_unit_hit();
+	}
 }
 
 std::string command;
@@ -300,7 +306,6 @@ void clear() {
 
 void new_game(game_type & game) {
 	game = game_type();
-	game.players[0].start_move(true);
 }
 
 int _tmain()
